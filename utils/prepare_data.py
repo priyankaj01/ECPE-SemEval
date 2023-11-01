@@ -2,6 +2,7 @@
 
 import codecs
 import random
+import json
 import numpy as np
 import pickle as pk
 from sklearn.metrics import precision_score, recall_score, f1_score
@@ -22,7 +23,7 @@ def load_w2v(embedding_dim, embedding_dim_pos, train_file_path, embedding_path):
     words = set(words)  # 所有不重复词的集合
     word_idx = dict((c, k + 1) for k, c in enumerate(words)) # 每个词及词的位置
     word_idx_rev = dict((k + 1, c) for k, c in enumerate(words)) # 每个词及词的位置
-    
+    word_idx
     w2v = {}
     inputFile2 = open(embedding_path, 'r')
     inputFile2.readline()
@@ -50,6 +51,74 @@ def load_w2v(embedding_dim, embedding_dim_pos, train_file_path, embedding_path):
     print("embedding.shape: {} embedding_pos.shape: {}".format(embedding.shape, embedding_pos.shape))
     print("load embedding done!\n")
     return word_idx_rev, word_idx, embedding, embedding_pos
+
+def token_seq(text):
+    return text.split()
+
+def load_w2v_semeval(embedding_dim, embedding_dim_pos, data_file_path, embedding_path):
+    print('\nload embedding...')
+    words = []
+    speakers = []
+    speaker_dict = {}
+    with open(data_file_path, 'r') as file:
+        data = json.load(file)
+    for conversation in data:
+        for utteranceConv in conversation['conversation']:
+            speaker = utteranceConv['speaker']
+            emotion = utteranceConv['emotion']
+            utterance = utteranceConv['text']
+            # print(speaker)
+            # print(emotion)
+            # print(utterance)            
+            if speaker in speaker_dict:
+                speaker_dict[speaker] += 1
+            else:
+                speaker_dict[speaker] = 1
+            speakers.append(speaker)
+   
+            words.extend([emotion] + token_seq(utterance))
+
+    words = set(words)
+    word_idx = dict((c, k + 1) for k, c in enumerate(words)) 
+    word_idx_rev = dict((k + 1, c) for k, c in enumerate(words)) 
+
+    speaker_dict = sorted(speaker_dict.items(), key=lambda x: x[1], reverse=True)
+    speakers = [item[0] for item in speaker_dict]
+    spe_idx = dict((c, k + 1) for k, c in enumerate(speakers)) 
+    spe_idx_rev = dict((k + 1, c) for k, c in enumerate(speakers))
+
+    # main_speakers = ['Monica', 'Ross', 'Chandler', 'Rachel', 'Phoebe', 'Joey']
+    # spe_idx = dict((c, k + 1) for k, c in enumerate(main_speakers))
+    # spe_idx_rev = dict((k + 1, c) for k, c in enumerate(main_speakers))
+    # print('all_speakers: {}'.format(len(spe_idx)))
+
+    w2v = {}
+    inputFile = open(embedding_path, 'r')
+    emb_cnt = int(inputFile.readline().split()[0])
+    for line in inputFile.readlines():
+        line = line.strip().split()
+        w, ebd = line[0], line[1:]
+        w2v[w] = ebd
+
+    embedding = [list(np.zeros(embedding_dim))]
+    hit = 0
+    for item in words:
+        if item in w2v:
+            vec = list(map(float, w2v[item]))
+            hit += 1
+        else:
+            vec = list(np.random.rand(embedding_dim) / 5. - 0.1)
+        embedding.append(vec)
+    print('data_file: {}\nw2v_file: {}\nall_words_emb {} all_words_file: {} hit_words: {}'.format(data_file_path, embedding_path, emb_cnt, len(words), hit))
+
+    embedding_pos = [list(np.zeros(embedding_dim_pos))]
+    embedding_pos.extend( [list(np.random.normal(loc=0.0, scale=0.1, size=embedding_dim_pos)) for i in range(200)] )
+
+    embedding, embedding_pos = np.array(embedding), np.array(embedding_pos)
+    
+    print("embedding.shape: {} embedding_pos.shape: {}".format(embedding.shape, embedding_pos.shape))
+    print("load embedding done!\n")
+    return word_idx_rev, word_idx, spe_idx_rev, spe_idx, embedding, embedding_pos
 
 
 def load_data(input_file, word_idx, max_doc_len = 75, max_sen_len = 45):
@@ -105,15 +174,28 @@ def load_data_2nd_step(input_file, word_idx, max_doc_len = 75, max_sen_len = 45)
         line = line.strip().split()
         doc_id = int(line[0])
         d_len = int(line[1])
-        pairs = eval(inputFile.readline().strip())
-        pair_id_all.extend([doc_id*10000+p[0]*100+p[1] for p in pairs])
+        line = inputFile.readline().strip()
+
+        # Split the line into two values
+        pair_strings = line.strip(')').split('(')
+        for pair in pair_strings:
+            pair1 = pair.strip(',').strip(')')
+            values = pair.split(',')
+            if len(values) == 2:
+                p0 = int(values[0])
+                p1 = int(values[1])
+                pair_id_all.append(doc_id * 10000 + p0 * 100 + p1)
+
+        # pairs = eval(inputFile.readline().strip())
+        # pair_id_all.extend([doc_id*10000+p[0]*100+p[1] for p in pairs])
+
         sen_len_tmp, x_tmp = np.zeros(max_doc_len,dtype=np.int32), np.zeros((max_doc_len, max_sen_len),dtype=np.int32)
         pos_list, cause_list = [], []
         for i in range(d_len):
             line = inputFile.readline().strip().split(',')
-            if int(line[1].strip())>0:
+            if line[1].strip() != 'null':
                 pos_list.append(i+1)
-            if int(line[2].strip())>0:
+            if line[2].strip() != 'null':
                 cause_list.append(i+1)
             words = line[-1]
             sen_len_tmp[i] = min(len(words.split()), max_sen_len)
@@ -136,6 +218,65 @@ def load_data_2nd_step(input_file, word_idx, max_doc_len = 75, max_sen_len = 45)
     print('n_cut {}, (y-negative, y-positive): {}'.format(n_cut, y.sum(axis=0)))
     print('load data done!\n')
     return pair_id_all, pair_id, y, x, sen_len, distance
+
+
+def load_data_semeval(input_file, word_idx, max_doc_len = 35, max_sen_len = 35):
+    # print('load data_file: {}'.format(input_file))
+    with open(input_file, 'r') as file:
+        data = json.load(file)
+      
+    pair_id_all, pair_id, y, x, sen_len, distance = [], [], [], [], [], []
+    sen_len_tmp, x_tmp = np.zeros(max_doc_len,dtype=np.int32), np.zeros((max_doc_len, max_sen_len),dtype=np.int32)
+    n_cut = 0
+    num = 0
+    for conversation in data:
+        num += 1
+        conversationID = conversation['conversation_ID']
+        # extract pair_strings from emotion_cause_pairs in conversation['emotion_cause_pairs']
+        for pair in conversation['emotion-cause_pairs']:
+            # print(pair[0][0])
+            pairid1 = int(pair[0].split('_')[0])
+            pairid2 = int(pair[1].split('_')[0])
+            pair_id_all.append(conversationID * 10000 + pairid1 * 100 + pairid2)
+        
+        if num==100:
+            break
+        pos_list, cause_list = [], []
+        d_len = len(conversation['conversation'])
+        # print(d_len)
+        for conv in conversation['conversation']:
+            emotion = conv['emotion']
+            uttId = conv['utterance_ID']-1
+            if emotion != 'neutral':
+                pos_list.append(uttId)
+                cause_list.append(uttId)
+            # if line[2].strip() != 'null':
+                # cause_list.append(i+1)
+            words = conv['text']
+            # print(words)
+            sen_len_tmp[uttId] = min(len(words.split()), max_sen_len)
+            # print(sen_len_tmp[i])
+            for j, word in enumerate(words.split()):
+                if j >= max_sen_len:
+                    n_cut += 1
+                    break
+                x_tmp[uttId][j] = int(word_idx[word])
+        for i in pos_list:
+            for j in cause_list:
+                pair_id_cur = conversationID*10000+i*100+j
+                pair_id.append(pair_id_cur)
+                y.append([0,1] if pair_id_cur in pair_id_all else [1,0])
+                x.append([x_tmp[i-1],x_tmp[j-1]])
+                sen_len.append([sen_len_tmp[i-1], sen_len_tmp[j-1]])
+                distance.append(j-i+100)
+    
+    y, x, sen_len, distance = map(np.array, [y, x, sen_len, distance])
+    for var in ['y', 'x', 'sen_len', 'distance']:
+        print('{}.shape {}'.format( var, eval(var).shape ))
+    print('n_cut {}, (y-negative, y-positive): {}'.format(n_cut, y.sum(axis=0)))
+    print('load data done!\n')
+    return pair_id_all, pair_id, y, x, sen_len, distance
+    
 
 def acc_prf(pred_y, true_y, doc_len, average='binary'): 
     tmp1, tmp2 = [], []

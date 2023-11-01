@@ -14,11 +14,11 @@ from utils.prepare_data import *
 FLAGS = tf.app.flags.FLAGS
 # >>>>>>>>>>>>>>>>>>>> For Model <<<<<<<<<<<<<<<<<<<< #
 ## embedding parameters ##
-tf.app.flags.DEFINE_string('w2v_file', '../data/w2v_200.txt', 'embedding file')
-tf.app.flags.DEFINE_integer('embedding_dim', 200, 'dimension of word embedding')
+tf.app.flags.DEFINE_string('w2v_file', './data_combine/w2v_200.txt', 'embedding file')
+tf.app.flags.DEFINE_integer('embedding_dim', 300, 'dimension of word embedding')
 tf.app.flags.DEFINE_integer('embedding_dim_pos', 50, 'dimension of position embedding')
 ## input struct ##
-tf.app.flags.DEFINE_integer('max_sen_len', 30, 'max number of tokens per sentence')
+tf.app.flags.DEFINE_integer('max_sen_len', 35, 'max number of tokens per sentence')
 ## model struct ##
 tf.app.flags.DEFINE_integer('n_hidden', 100, 'number of hidden unit')
 tf.app.flags.DEFINE_integer('n_class', 2, 'number of distinct class')
@@ -76,7 +76,7 @@ def get_batch_data(x, sen_len, keep_prob1, keep_prob2, distance, y, batch_size, 
         yield feed_list, len(index)
 
 def run():
-    save_dir = 'pair_data/{}/'.format(FLAGS.scope)
+    save_dir = 'data_combine/'
     if not os.path.exists(save_dir):
             os.makedirs(save_dir)
     if FLAGS.log_file_name:
@@ -84,7 +84,8 @@ def run():
     print_time()
     tf.reset_default_graph()
     # Model Code Block
-    word_idx_rev, word_id_mapping, word_embedding, pos_embedding = load_w2v(FLAGS.embedding_dim, FLAGS.embedding_dim_pos, 'data_combine/clause_keywords.csv', FLAGS.w2v_file)
+    # word_idx_rev, word_id_mapping, word_embedding, pos_embedding = load_w2v(FLAGS.embedding_dim, FLAGS.embedding_dim_pos, 'data_combine/clause_keywords.csv', FLAGS.w2v_file)
+    word_idx_rev, word_idx, spe_idx_rev, spe_idx, word_embedding, pos_embedding = load_w2v_semeval(300, 50, './text/Subtask_1_train.json', './ECF_glove_300.txt')
     word_embedding = tf.constant(word_embedding, dtype=tf.float32, name='word_embedding')
     pos_embedding = tf.constant(pos_embedding, dtype=tf.float32, name='pos_embedding')
 
@@ -116,22 +117,24 @@ def run():
         keep_rate_list, acc_subtask_list, p_pair_list, r_pair_list, f1_pair_list = [], [], [], [], []
         o_p_pair_list, o_r_pair_list, o_f1_pair_list = [], [], []
         
-        for fold in range(1,11):
+        for fold in range(1,2):
             sess.run(tf.global_variables_initializer())
             # train for one fold
             print('############# fold {} begin ###############'.format(fold))
             # Data Code Block
             train_file_name = 'fold{}_train.txt'.format(fold, FLAGS)
             test_file_name = 'fold{}_test.txt'.format(fold)
-            tr_pair_id_all, tr_pair_id, tr_y, tr_x, tr_sen_len, tr_distance = load_data_2nd_step(save_dir + train_file_name, word_id_mapping, max_sen_len = FLAGS.max_sen_len)
-            te_pair_id_all, te_pair_id, te_y, te_x, te_sen_len, te_distance = load_data_2nd_step(save_dir + test_file_name, word_id_mapping, max_sen_len = FLAGS.max_sen_len)
-            
+            # tr_pair_id_all, tr_pair_id, tr_y, tr_x, tr_sen_len, tr_distance = load_data_2nd_step(save_dir + train_file_name, word_id_mapping, max_sen_len = FLAGS.max_sen_len)
+            # te_pair_id_all, te_pair_id, te_y, te_x, te_sen_len, te_distance = load_data_2nd_step(save_dir + test_file_name, word_id_mapping, max_sen_len = FLAGS.max_sen_len)
+            tr_pair_id_all, tr_pair_id, tr_y, tr_x, tr_sen_len, tr_distance = load_data_semeval('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
+            te_pair_id_all, te_pair_id, te_y, te_x, te_sen_len, te_distance = load_data_semeval('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
             max_acc_subtask, max_f1 = [-1.]*2
             print('train docs: {}    test docs: {}'.format(len(tr_x), len(te_x)))
             for i in xrange(FLAGS.training_iter):
                 start_time, step = time.time(), 1
                 # train
                 for train, _ in get_batch_data(tr_x, tr_sen_len, FLAGS.keep_prob1, FLAGS.keep_prob2, tr_distance, tr_y, FLAGS.batch_size):
+                    print(train[0].shape)
                     _, loss, pred_y, true_y, acc = sess.run(
                         [optimizer, loss_op, pred_y_op, true_y_op, acc_op], feed_dict=dict(zip(placeholders, train)))
                     print('step {}: train loss {:.4f} acc {:.4f}'.format(step, loss, acc))

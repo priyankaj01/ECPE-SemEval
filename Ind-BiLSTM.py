@@ -14,7 +14,7 @@ from utils.prepare_data import *
 FLAGS = tf.app.flags.FLAGS
 # >>>>>>>>>>>>>>>>>>>> For Model <<<<<<<<<<<<<<<<<<<< #
 ## embedding parameters ##
-tf.app.flags.DEFINE_string('w2v_file', '../data/w2v_200.txt', 'embedding file')
+tf.app.flags.DEFINE_string('w2v_file', './data_combine/w2v_200.txt', 'embedding file')
 tf.app.flags.DEFINE_integer('embedding_dim', 200, 'dimension of word embedding')
 tf.app.flags.DEFINE_integer('embedding_dim_pos', 50, 'dimension of position embedding')
 ## input struct ##
@@ -93,7 +93,7 @@ def get_batch_data(x, sen_len, doc_len, keep_prob1, keep_prob2, y_position, y_ca
         yield feed_list, len(index)
 
 def run():
-    save_dir = 'pair_data/{}/'.format(FLAGS.scope)
+    save_dir = 'data_combine/'
     if not os.path.exists(save_dir):
             os.makedirs(save_dir)
     if FLAGS.log_file_name:
@@ -197,7 +197,7 @@ def run():
                 print('Average max cause: max_acc {:.4f} max_p {:.4f} max_r {:.4f} max_f1 {:.4f}'.format(result_avg_cause_max[0], result_avg_cause_max[1], result_avg_cause_max[2], result_avg_cause_max[3]))
                 print('Average max pos: max_acc {:.4f} max_p {:.4f} max_r {:.4f} max_f1 {:.4f}\n'.format(result_avg_pos_max[0], result_avg_pos_max[1], result_avg_pos_max[2], result_avg_pos_max[3]))
 
-            def get_pair_data(file_name, doc_id, doc_len, y_pairs, pred_y_cause, pred_y_pos, x, sen_len, word_idx_rev):
+            def get_data_combine(file_name, doc_id, doc_len, y_pairs, pred_y_cause, pred_y_pos, x, sen_len, word_idx_rev):
                 g = open(file_name, 'w')
                 for i in range(len(doc_id)):
                     g.write(doc_id[i]+' '+str(doc_len[i])+'\n')
@@ -208,8 +208,8 @@ def run():
                             clause = clause + word_idx_rev[x[i][j][k]] + ' '
                         g.write(str(j+1)+', '+str(pred_y_pos[i][j])+', '+str(pred_y_cause[i][j])+', '+clause+'\n')
                 print 'write {} done'.format(file_name)
-            get_pair_data(save_dir + test_file_name, te_doc_id, te_doc_len, te_y_pairs, te_pred_y_cause, te_pred_y_pos, te_x, te_sen_len, word_idx_rev)
-            get_pair_data(save_dir + train_file_name, tr_doc_id, tr_doc_len, tr_y_pairs, tr_pred_y_cause, tr_pred_y_pos, tr_x, tr_sen_len, word_idx_rev)
+            get_data_combine(save_dir + test_file_name, te_doc_id, te_doc_len, te_y_pairs, te_pred_y_cause, te_pred_y_pos, te_x, te_sen_len, word_idx_rev)
+            get_data_combine(save_dir + train_file_name, tr_doc_id, tr_doc_len, tr_y_pairs, tr_pred_y_cause, tr_pred_y_pos, tr_x, tr_sen_len, word_idx_rev)
             
             print 'Optimization Finished!\n'
             print('############# fold {} end ###############'.format(fold))
