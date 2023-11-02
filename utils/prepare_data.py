@@ -102,6 +102,8 @@ def load_w2v_semeval(embedding_dim, embedding_dim_pos, data_file_path, embedding
 
     embedding = [list(np.zeros(embedding_dim))]
     hit = 0
+    seed = 150
+    np.random.seed(seed)
     for item in words:
         if item in w2v:
             vec = list(map(float, w2v[item]))
@@ -276,6 +278,76 @@ def load_data_semeval(input_file, word_idx, max_doc_len = 35, max_sen_len = 35):
     print('n_cut {}, (y-negative, y-positive): {}'.format(n_cut, y.sum(axis=0)))
     print('load data done!\n')
     return pair_id_all, pair_id, y, x, sen_len, distance
+
+def load_data_semeval_train_test_split(input_file, word_idx, max_doc_len = 35, max_sen_len = 35):
+    # print('load data_file: {}'.format(input_file))
+    with open(input_file, 'r') as file:
+        data = json.load(file)
+      
+    pair_id_all, pair_id, y, x, sen_len, distance = [], [], [], [], [], []
+    sen_len_tmp, x_tmp = np.zeros(max_doc_len,dtype=np.int32), np.zeros((max_doc_len, max_sen_len),dtype=np.int32)
+    n_cut = 0
+    num = 0
+    for conversation in data:
+        num += 1
+        conversationID = conversation['conversation_ID']
+        # extract pair_strings from emotion_cause_pairs in conversation['emotion_cause_pairs']
+        for pair in conversation['emotion-cause_pairs']:
+            # print(pair[0][0])
+            pairid1 = int(pair[0].split('_')[0])
+            pairid2 = int(pair[1].split('_')[0])
+            pair_id_all.append(conversationID * 10000 + pairid1 * 100 + pairid2)
+        
+        if num==100:
+            break
+        pos_list, cause_list = [], []
+        d_len = len(conversation['conversation'])
+        # print(d_len)
+        for conv in conversation['conversation']:
+            emotion = conv['emotion']
+            uttId = conv['utterance_ID']-1
+            if emotion != 'neutral':
+                pos_list.append(uttId)
+                cause_list.append(uttId)
+            # if line[2].strip() != 'null':
+                # cause_list.append(i+1)
+            words = conv['text']
+            # print(words)
+            sen_len_tmp[uttId] = min(len(words.split()), max_sen_len)
+            # print(sen_len_tmp[i])
+            for j, word in enumerate(words.split()):
+                if j >= max_sen_len:
+                    n_cut += 1
+                    break
+                x_tmp[uttId][j] = int(word_idx[word])
+        for i in pos_list:
+            for j in cause_list:
+                pair_id_cur = conversationID*10000+i*100+j
+                pair_id.append(pair_id_cur)
+                y.append([0,1] if pair_id_cur in pair_id_all else [1,0])
+                x.append([x_tmp[i-1],x_tmp[j-1]])
+                sen_len.append([sen_len_tmp[i-1], sen_len_tmp[j-1]])
+                distance.append(j-i+100)
+    
+    y, x, sen_len, distance = map(np.array, [y, x, sen_len, distance])
+    #split x , y , sen_len , distance into 80 : 20 train validation percentage
+    # also split for pair_id   
+    pair_id_train = pair_id[:int(len(pair_id)*0.8)]
+    pair_id_test = pair_id[int(len(pair_id)*0.8):]
+    x_train = x[:int(len(x)*0.8)]
+    x_test = x[int(len(x)*0.8):]
+    y_train = y[:int(len(y)*0.8)]
+    y_test = y[int(len(y)*0.8):]
+    sen_len_train = sen_len[:int(len(sen_len)*0.8)]
+    sen_len_test = sen_len[int(len(sen_len)*0.8):]
+    distance_train = distance[:int(len(distance)*0.8)]
+    distance_test = distance[int(len(distance)*0.8):]
+
+    for var in ['y', 'x', 'sen_len', 'distance']:
+        print('{}.shape {}'.format( var, eval(var).shape ))
+    print('n_cut {}, (y-negative, y-positive): {}'.format(n_cut, y.sum(axis=0)))
+    print('load data done!\n')
+    return pair_id_all,  pair_id_all , pair_id_train ,pair_id_test, x_train, x_test, y_train, y_test, sen_len_train, sen_len_test, distance_train, distance_test
     
 
 def acc_prf(pred_y, true_y, doc_len, average='binary'): 

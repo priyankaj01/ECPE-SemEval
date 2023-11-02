@@ -25,7 +25,7 @@ tf.app.flags.DEFINE_integer('n_class', 2, 'number of distinct class')
 # >>>>>>>>>>>>>>>>>>>> For Data <<<<<<<<<<<<<<<<<<<< #
 tf.app.flags.DEFINE_string('log_file_name', '', 'name of log file')
 # >>>>>>>>>>>>>>>>>>>> For Training <<<<<<<<<<<<<<<<<<<< #
-tf.app.flags.DEFINE_integer('training_iter', 10, 'number of train iter')
+tf.app.flags.DEFINE_integer('training_iter', 5, 'number of train iter')
 tf.app.flags.DEFINE_string('scope', 'P_cause', 'RNN scope')
 # not easy to tune , a good posture of using data to train model is very important
 tf.app.flags.DEFINE_integer('batch_size', 32, 'number of example per batch')
@@ -113,6 +113,8 @@ def run():
     print_training_info()
     tf_config = tf.ConfigProto()  
     tf_config.gpu_options.allow_growth = True
+
+    saver = tf.train.Saver()
     with tf.Session(config=tf_config) as sess:
         keep_rate_list, acc_subtask_list, p_pair_list, r_pair_list, f1_pair_list = [], [], [], [], []
         o_p_pair_list, o_r_pair_list, o_f1_pair_list = [], [], []
@@ -126,20 +128,24 @@ def run():
             test_file_name = 'fold{}_test.txt'.format(fold)
             # tr_pair_id_all, tr_pair_id, tr_y, tr_x, tr_sen_len, tr_distance = load_data_2nd_step(save_dir + train_file_name, word_id_mapping, max_sen_len = FLAGS.max_sen_len)
             # te_pair_id_all, te_pair_id, te_y, te_x, te_sen_len, te_distance = load_data_2nd_step(save_dir + test_file_name, word_id_mapping, max_sen_len = FLAGS.max_sen_len)
-            tr_pair_id_all, tr_pair_id, tr_y, tr_x, tr_sen_len, tr_distance = load_data_semeval('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
-            te_pair_id_all, te_pair_id, te_y, te_x, te_sen_len, te_distance = load_data_semeval('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
+            # tr_pair_id_all, tr_pair_id, tr_y, tr_x, tr_sen_len, tr_distance = load_data_semeval('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
+            # te_pair_id_all, te_pair_id, te_y, te_x, te_sen_len, te_distance = load_data_semeval('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
+
+            tr_pair_id_all, te_pair_id_all , tr_pair_id, te_pair_id, tr_x , te_x , tr_y , te_y , tr_sen_len , te_sen_len , tr_distance , te_distance = load_data_semeval_train_test_split('./text/Subtask_1_train.json', word_idx, max_sen_len = FLAGS.max_sen_len)
+
             max_acc_subtask, max_f1 = [-1.]*2
             print('train docs: {}    test docs: {}'.format(len(tr_x), len(te_x)))
             for i in xrange(FLAGS.training_iter):
                 start_time, step = time.time(), 1
                 # train
                 for train, _ in get_batch_data(tr_x, tr_sen_len, FLAGS.keep_prob1, FLAGS.keep_prob2, tr_distance, tr_y, FLAGS.batch_size):
-                    print(train[0].shape)
+                    # print(train[0].shape)
                     _, loss, pred_y, true_y, acc = sess.run(
                         [optimizer, loss_op, pred_y_op, true_y_op, acc_op], feed_dict=dict(zip(placeholders, train)))
-                    print('step {}: train loss {:.4f} acc {:.4f}'.format(step, loss, acc))
+                    # print('step {}: train loss {:.4f} acc {:.4f}'.format(step, loss, acc))
                     step = step + 1
                 # test
+                saver.save(sess, "train_checkpoints/epoch.ckpt", global_step=i)
                 test = [te_x, te_sen_len, 1., 1., te_distance, te_y]
                 loss, pred_y, true_y, acc = sess.run([loss_op, pred_y_op, true_y_op, acc_op], feed_dict=dict(zip(placeholders, test)))
                 print('\nepoch {}: test loss {:.4f}, acc {:.4f}, cost time: {:.1f}s\n'.format(i, loss, acc, time.time()-start_time))
@@ -160,7 +166,6 @@ def run():
 
             print 'Optimization Finished!\n'
             print('############# fold {} end ###############'.format(fold))
-            # fold += 1
             acc_subtask_list.append(max_acc_subtask)
             keep_rate_list.append(max_keep_rate)
             p_pair_list.append(max_p)
@@ -183,17 +188,10 @@ def run():
         
      
 def main(_):
-    
     # FLAGS.log_file_name = 'step2.log'
-    FLAGS.training_iter=20
-
-    for scope_name in ['Ind_BiLSTM', 'P_emotion', 'P_cause']:
-        FLAGS.scope= scope_name + '_1'
-        run()
-        FLAGS.scope= scope_name + '_2'
-        run()
-
-    
+    # FLAGS.training_iter=20
+    FLAGS.scope= 'Ind_BiLSTM'
+    run()
 
 
 if __name__ == '__main__':
