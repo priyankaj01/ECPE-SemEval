@@ -20,17 +20,17 @@ tf.app.flags.DEFINE_integer('embedding_dim_pos', 50, 'dimension of position embe
 ## input struct ##
 tf.app.flags.DEFINE_integer('max_sen_len', 35, 'max number of tokens per sentence')
 ## model struct ##
-tf.app.flags.DEFINE_integer('n_hidden', 100, 'number of hidden unit')
+tf.app.flags.DEFINE_integer('n_hidden', 200, 'number of hidden unit')
 tf.app.flags.DEFINE_integer('n_class', 2, 'number of distinct class')
 # >>>>>>>>>>>>>>>>>>>> For Data <<<<<<<<<<<<<<<<<<<< #
 tf.app.flags.DEFINE_string('log_file_name', '', 'name of log file')
 # >>>>>>>>>>>>>>>>>>>> For Training <<<<<<<<<<<<<<<<<<<< #
-tf.app.flags.DEFINE_integer('training_iter', 5, 'number of train iter')
+tf.app.flags.DEFINE_integer('training_iter', 20, 'number of train iter')
 tf.app.flags.DEFINE_string('scope', 'P_cause', 'RNN scope')
 # not easy to tune , a good posture of using data to train model is very important
 tf.app.flags.DEFINE_integer('batch_size', 32, 'number of example per batch')
-tf.app.flags.DEFINE_float('learning_rate', 0.005, 'learning rate')
-tf.app.flags.DEFINE_float('keep_prob1', 0.5, 'word embedding training dropout keep prob')
+tf.app.flags.DEFINE_float('learning_rate', 0.001, 'learning rate')
+tf.app.flags.DEFINE_float('keep_prob1', 0.7, 'word embedding training dropout keep prob')
 tf.app.flags.DEFINE_float('keep_prob2', 1.0, 'softmax layer dropout keep prob')
 tf.app.flags.DEFINE_float('l2_reg', 0.00001, 'l2 regularization')
 
@@ -114,7 +114,7 @@ def run():
     tf_config = tf.ConfigProto()  
     tf_config.gpu_options.allow_growth = True
 
-    saver = tf.train.Saver()
+    saver = tf.train.Saver(max_to_keep=20)
     with tf.Session(config=tf_config) as sess:
         keep_rate_list, acc_subtask_list, p_pair_list, r_pair_list, f1_pair_list = [], [], [], [], []
         o_p_pair_list, o_r_pair_list, o_f1_pair_list = [], [], []
